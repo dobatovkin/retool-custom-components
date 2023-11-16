@@ -2,23 +2,24 @@ import React, { useRef, useEffect, useState } from "react";
 
 import { Box, Button, Divider, TextField, Typography } from "@mui/material";
 
-import mapboxgl from "!mapbox-gl";
+import mapboxgl from "mapbox-gl";
 
 mapboxgl.accessToken =
   "pk.eyJ1IjoiZGFiYXRvdWtpbiIsImEiOiJjbGc0NWFocjMwMmI2M3BycWF3cjlxNmc2In0.PxbxqgSkUxxczkcEx0_VEw";
 
-/* Default component model
-  {
-    "greeting": "Hello, ",  
-    "username": {{ current_user.fullName }},
-    "message": "Welcome to custom components!",
-    "yesQuery": "yesQuery",
-    "noQuery": "noQuery",
-    "runQuery": "runQuery"
-  }
-*/
+/**
+ * @type MapComponentModel
+ */
 
+/**
+ *
+ * @param {*} param0
+ * @returns
+ */
 const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+
   useEffect(() => {
     const map = new mapboxgl.Map({
       container: "map",
@@ -26,17 +27,29 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       center: [-74.5, 40],
       zoom: 9,
     });
-
-    // Add navigation control
+    // add navigation control
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
-    // Add a marker at the center
+    // save map instance to ref
+    mapRef.current = map;
+
+    // add a marker at the center
     new mapboxgl.Marker().setLngLat([-74.5, 40]).addTo(map);
   });
 
+  useEffect(() => {
+    // Check if the map is initialized
+    if (mapRef.current && model) {
+      // Fit the map to the bounding box
+      mapRef.current.flyTo({
+        center: [model.longitude, model.latitude],
+        zoom: 18,
+      });
+    }
+  }, [model]);
   return (
     <div>
-      <div id="map"></div>
+      <div id="map" ref={mapContainerRef}></div>
     </div>
   );
 };
