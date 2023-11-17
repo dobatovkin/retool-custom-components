@@ -9,6 +9,7 @@ mapboxgl.accessToken =
 
 /**
  * @type MapComponentModel
+ * @property
  */
 
 /**
@@ -21,6 +22,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
   const mapRef = useRef(null);
 
   useEffect(() => {
+    mapboxgl.accessToken = model.mapboxAccessToken;
     const map = new mapboxgl.Map({
       container: "map",
       style: "mapbox://styles/mapbox/streets-v11",
@@ -39,7 +41,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
 
   useEffect(() => {
     // Check if the map is initialized
-    if (mapRef.current && model) {
+    if (mapRef.current && model.itemId) {
       // Fit the map to the bounding box
       mapRef.current.flyTo({
         center: [model.longitude, model.latitude],
