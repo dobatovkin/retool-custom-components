@@ -4,9 +4,6 @@ import { Box, Button, Divider, TextField, Typography } from "@mui/material";
 
 import mapboxgl from "mapbox-gl";
 
-mapboxgl.accessToken =
-  "pk.eyJ1IjoiZGFiYXRvdWtpbiIsImEiOiJjbGc0NWFocjMwMmI2M3BycWF3cjlxNmc2In0.PxbxqgSkUxxczkcEx0_VEw";
-
 /**
  * @type MapComponentModel
  * @property
