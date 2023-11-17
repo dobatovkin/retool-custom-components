@@ -23,8 +23,8 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     const map = new mapboxgl.Map({
       container: "map",
       style: "mapbox://styles/mapbox/streets-v11",
-      center: [-74.5, 40],
-      zoom: 9,
+      center: [0, 0],
+      zoom: 2,
     });
     // add navigation control
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
@@ -33,8 +33,10 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     mapRef.current = map;
 
     // add a marker at the center
-    new mapboxgl.Marker().setLngLat([-74.5, 40]).addTo(map);
-  });
+    new mapboxgl.Marker()
+      .setLngLat([model.longitude, model.latitude])
+      .addTo(map);
+  }, [mapContainerRef]);
 
   useEffect(() => {
     // Check if the map is initialized
