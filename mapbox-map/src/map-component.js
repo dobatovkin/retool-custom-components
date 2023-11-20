@@ -13,7 +13,7 @@ import {
   SelectChangeEvent,
 } from "@mui/material";
 
-import mapboxgl from "mapbox-gl";
+import mapboxgl from "!mapbox-gl";
 
 /**
  * Extended Mapbox GL JS Layer with component-specific properties,
@@ -39,6 +39,8 @@ import mapboxgl from "mapbox-gl";
 
 const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
   const mapBasemapRef = useRef(null);
+  const basemapListRef = useRef(null);
+  const [basemapId, setBasemapId] = React.useState("");
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
 
@@ -56,10 +58,27 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     // save map instance to ref
     mapRef.current = map;
 
+    basemapListRef.current = [
+      {
+        id: "mapbox-streets-v12",
+        name: "Mapbox Streets",
+        type: "style",
+        url: "mapbox://styles/mapbox/streets-v12",
+      },
+      {
+        id: "mapbox-satellite-v9",
+        name: "Mapbox Satellite",
+        type: "style",
+        url: "mapbox://styles/mapbox/satellite-v9",
+      },
+    ];
+
     // add a marker at the center
-    new mapboxgl.Marker()
-      .setLngLat([model.longitude, model.latitude])
-      .addTo(map);
+    for (const marker of model.markers) {
+      new mapboxgl.Marker()
+        .setLngLat([marker.longitude, marker.latitude])
+        .addTo(map);
+    }
   }, [mapContainerRef]);
 
   useEffect(() => {
@@ -71,18 +90,25 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
         zoom: 18,
       });
     }
-  }, [model]);
-  const [basemapId, setBasemapId] = React.useState("");
+  }, [model.itemId]);
 
   const handleBasemapIdChange = (event) => {
     setBasemapId(event.target.value);
+    mapRef.current.setStyle(basemapId.url);
   };
   return (
     <div>
-      <div id="map" ref={mapContainerRef}></div>
+      <div id="map" ref={mapContainerRef} style={{ zIndex: -1 }}></div>
 
-      <Box sx={{ maxWidth: 120, margin: "10px", bgcolor: "white" }}>
-        <FormControl fullWidth sx={{ margin: "5px" }}>
+      <Box
+        sx={{
+          maxWidth: 350,
+          margin: "10px",
+          bgcolor: "white",
+          borderRadius: "5px",
+        }}
+      >
+        <FormControl sx={{ margin: "10px", width: "40%" }}>
           <InputLabel id="basemap-select-label">Basemap</InputLabel>
           <Select
             labelId="basemap-select-label"
@@ -91,10 +117,9 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
             label="Basemap"
             onChange={handleBasemapIdChange}
           >
-            {/* basemapList.map((basemapItem) => {}) */}
-            <MenuItem value={10}>Ten</MenuItem>
-            <MenuItem value={20}>Twenty</MenuItem>
-            <MenuItem value={30}>Thirty</MenuItem>
+            {basemapList.map((basemapItem) => {
+              <MenuItem value={10}>Ten</MenuItem>;
+            })}
           </Select>
         </FormControl>
       </Box>
