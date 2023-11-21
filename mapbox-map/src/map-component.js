@@ -33,37 +33,55 @@ import mapboxgl from "!mapbox-gl";
  * @typedef {object} MapComponentModel
  * @property {string} mapboxAccessToken Access token for Mapbox GL JS
  * @property {string} itemId ID of the current selected item in Retool. Change causes item-specific layers and markers to rerender.
+ * @property {object[]} basemaps
  * @property {MapComponentLayer[]} layers Array of layers to display.
  * @property {import("mapbox-gl").MarkerOptions[]} markers Array of markers to display.
  */
 
 const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
-  const mapBasemapRef = useRef(null);
-  const basemapListRef = useRef([
-    {
-      id: "mapbox-streets-v12",
-      name: "Mapbox Streets",
-      type: "style",
-      url: "mapbox://styles/mapbox/streets-v12",
-    },
-    {
-      id: "mapbox-satellite-v9",
-      name: "Mapbox Satellite",
-      type: "style",
-      url: "mapbox://styles/mapbox/satellite-v9",
-    },
-  ]);
-  const [basemapId, setBasemapId] = React.useState("");
-  const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
+  const mapContainer = useRef(null);
+  const basemapList = useRef(null);
+  const overlayList = useRef(null);
+  const [basemapId, setBasemapId] = useState("");
+  const [overlayId, setOverlayId] = useState("");
+
+  const prepareBasemapList = () => {
+    basemapList.current = [
+      {
+        id: "mapbox-streets-v12",
+        name: "Mapbox Streets",
+        type: "style",
+        url: "mapbox://styles/mapbox/streets-v12",
+        default: true,
+      },
+      {
+        id: "mapbox-satellite-v9",
+        name: "Mapbox Satellite",
+        type: "style",
+        url: "mapbox://styles/mapbox/satellite-v9",
+      },
+    ];
+    // add basemaps from model
+    for (const basemapItem of model.basemaps) {
+      basemapList.current.push(basemapItem);
+    }
+  };
+
+  const prepareOverlayList = () => {
+    overlayList.current = [];
+    for (const overlayItem of model.overlays) {
+      overlayList.current.push(overlayItem);
+    }
+  };
 
   useEffect(() => {
     mapboxgl.accessToken = model.mapboxAccessToken;
     const map = new mapboxgl.Map({
       container: "map",
-      style: "mapbox://styles/mapbox/streets-v11",
+      style: "mapbox://styles/mapbox/streets-v12",
       center: [0, 0],
-      zoom: 2,
+      zoom: 0,
     });
     // add navigation control
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
@@ -71,14 +89,27 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     // save map instance to ref
     mapRef.current = map;
 
+    // prep basemap
+    map.on("load", () => {
+      prepareBasemapList();
+      // choose mapbox streets as basemap on load
+      setBasemapId(basemapList.current[0]?.id);
+    });
+
     // add a marker at the center
     for (const marker of model.markers) {
       new mapboxgl.Marker()
         .setLngLat([marker.longitude, marker.latitude])
         .addTo(map);
     }
-  }, [mapContainerRef]);
+  }, [mapContainer]);
 
+  // basemap hook
+  useEffect(() => {
+    prepareBasemapList();
+  }, [model.basemaps]);
+
+  // item change hook
   useEffect(() => {
     // check if the map is initialized and itemId is accessible
     if (mapRef.current && model.itemId) {
@@ -95,23 +126,34 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     }
   }, [model.itemId]);
 
-  const handleBasemapIdChange = (event) => {
-    setBasemapId(event.target.value);
-    mapRef.current.setStyle(basemapId.url);
+  const handleBasemapIdChange = (e) => {
+    setBasemapId(e.target.value);
+    //find an item with the name being set
+    const basemapItem = basemapList.current.find(
+      (item) => item.id === e.target.value,
+    );
+    mapRef.current.setStyle(basemapItem.url);
   };
+
+  const handleOverlayIdChange = (e) => {
+    setOverlayId(e.target.value);
+  };
+
   return (
     <div>
-      <div id="map" ref={mapContainerRef} style={{ zIndex: -1 }}></div>
+      <div id="map" ref={mapContainer} style={{ zIndex: 0 }}></div>
 
       <Box
         sx={{
-          maxWidth: 350,
-          margin: "10px",
+          position: "absolute",
+          width: "70vw",
+          margin: "1vw",
           bgcolor: "white",
           borderRadius: "5px",
+          zIndex: 1,
         }}
       >
-        <FormControl sx={{ margin: "10px", width: "40%" }}>
+        <FormControl size="small" sx={{ width: "48%", m: "2% 1% 1.5%" }}>
           <InputLabel id="basemap-select-label">Basemap</InputLabel>
           <Select
             labelId="basemap-select-label"
@@ -120,12 +162,26 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
             label="Basemap"
             onChange={handleBasemapIdChange}
           >
-            {basemapListRef.current.map((basemapItem) => (
-              <MenuItem key={basemapItem.id} value={basemapItem.id}>
-                {basemapItem.name}
-              </MenuItem>
-            ))}
+            {basemapList.current &&
+              basemapList.current.map((basemapItem) => (
+                <MenuItem key={basemapItem.id} value={basemapItem.id}>
+                  {basemapItem.name}
+                </MenuItem>
+              ))}
           </Select>
+        </FormControl>
+        <FormControl
+          size="small"
+          sx={{ margin: "10px", width: "48%", m: "2% 1% 1.5%" }}
+        >
+          <InputLabel id="overlay-select-label">Overlay</InputLabel>
+          <Select
+            id="overlay-select"
+            labelId="overlay-select-label"
+            value={overlayId}
+            label="Overlay"
+            onChange={handleOverlayIdChange}
+          ></Select>
         </FormControl>
       </Box>
     </div>
