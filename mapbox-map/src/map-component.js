@@ -132,11 +132,20 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     const basemapItem = basemapList.current.find(
       (item) => item.id === e.target.value,
     );
-    mapRef.current.setStyle(basemapItem.url);
+    if (basemapItem.type === "style") {
+      mapRef.current.setStyle(basemapItem.url);
+    } else {
+      throw new Error(
+        `Not Implemented: basemap ${basemapItem.id} is of type "${basemapItem.type}, yet only "style" is implemented`,
+      );
+    }
   };
 
   const handleOverlayIdChange = (e) => {
     setOverlayId(e.target.value);
+    const overlayItem = overlayList.current.find(
+      (item) => item.id === e.target.value,
+    );
   };
 
   return (
@@ -182,6 +191,12 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
             label="Overlay"
             onChange={handleOverlayIdChange}
           ></Select>
+          {overlayList.current &&
+            overlayList.current.map((overlayItem) => (
+              <MenuItem key={overlayItem.id} value={overlayItem.id}>
+                {overlayItem.name || overlayItem.id}
+              </MenuItem>
+            ))}
         </FormControl>
       </Box>
     </div>
