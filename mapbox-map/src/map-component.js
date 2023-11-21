@@ -39,7 +39,20 @@ import mapboxgl from "!mapbox-gl";
 
 const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
   const mapBasemapRef = useRef(null);
-  const basemapListRef = useRef(null);
+  const basemapListRef = useRef([
+    {
+      id: "mapbox-streets-v12",
+      name: "Mapbox Streets",
+      type: "style",
+      url: "mapbox://styles/mapbox/streets-v12",
+    },
+    {
+      id: "mapbox-satellite-v9",
+      name: "Mapbox Satellite",
+      type: "style",
+      url: "mapbox://styles/mapbox/satellite-v9",
+    },
+  ]);
   const [basemapId, setBasemapId] = React.useState("");
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
@@ -58,21 +71,6 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     // save map instance to ref
     mapRef.current = map;
 
-    basemapListRef.current = [
-      {
-        id: "mapbox-streets-v12",
-        name: "Mapbox Streets",
-        type: "style",
-        url: "mapbox://styles/mapbox/streets-v12",
-      },
-      {
-        id: "mapbox-satellite-v9",
-        name: "Mapbox Satellite",
-        type: "style",
-        url: "mapbox://styles/mapbox/satellite-v9",
-      },
-    ];
-
     // add a marker at the center
     for (const marker of model.markers) {
       new mapboxgl.Marker()
@@ -85,10 +83,15 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     // check if the map is initialized and itemId is accessible
     if (mapRef.current && model.itemId) {
       // Fit the map to the bounding box
-      mapRef.current.flyTo({
-        center: [model.longitude, model.latitude],
-        zoom: 18,
-      });
+      // mapRef.current.flyTo({
+      //   center: [model.longitude, model.latitude],
+      //   zoom: 18,
+      // });
+      // for (const marker of model.markers) {
+      //   new mapboxgl.Marker()
+      //     .setLngLat([marker.longitude, marker.latitude])
+      //     .addTo(map);
+      // }
     }
   }, [model.itemId]);
 
@@ -117,9 +120,11 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
             label="Basemap"
             onChange={handleBasemapIdChange}
           >
-            {basemapList.map((basemapItem) => {
-              <MenuItem value={10}>Ten</MenuItem>;
-            })}
+            {basemapListRef.current.map((basemapItem) => (
+              <MenuItem key={basemapItem.id} value={basemapItem.id}>
+                {basemapItem.name}
+              </MenuItem>
+            ))}
           </Select>
         </FormControl>
       </Box>
