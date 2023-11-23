@@ -187,6 +187,14 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       const overlayItem = overlayList.current.find(
         (item) => item.id === e.target.value,
       );
+
+      if (mapRef.current.getLayer("overlay")) {
+        mapRef.current.removeLayer("overlay");
+      }
+      if (mapRef.current.getSource("overlay")) {
+        mapRef.current.removeSource("overlay");
+      }
+
       mapRef.current.addLayer({
         ...overlayItem,
         id: "overlay",
