@@ -45,8 +45,10 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
   const overlayList = useRef(null);
   const [basemapId, setBasemapId] = useState("");
   const [overlayId, setOverlayId] = useState("");
+  const markersList = useRef([]);
+  const markersOptionsList = useRef([]);
 
-  const prepareBasemapList = () => {
+  const reloadBasemapList = () => {
     basemapList.current = [
       {
         id: "mapbox-streets-v12",
@@ -68,13 +70,57 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     }
   };
 
-  const prepareOverlayList = () => {
+  const reloadOverlayList = () => {
     overlayList.current = [];
     for (const overlayItem of model.overlays) {
       overlayList.current.push(overlayItem);
     }
   };
 
+  const reloadMarkers = () => {
+    // check if the map is initialized and itemId is accessible
+    if (mapRef.current && model.markers) {
+      // cleanup previous markers
+      for (let i = markersList.current.length - 1; i >= 0; i--) {
+        markersList.current[i].remove();
+      }
+      markersList.current = [];
+      markersOptionsList.current = [];
+
+      // add new markers to the map
+      for (const markerOptions of model.markers) {
+        const marker = new mapboxgl.Marker(markerOptions)
+          .setLngLat([markerOptions.lnglat.lng, markerOptions.lnglat.lat])
+          .addTo(mapRef.current)
+          .on("dragend", () => {
+            if (
+              markersList.current.length === markersOptionsList.current.length
+            ) {
+              const updatedMarkersModel = [];
+              for (let n = markersList.current.length - 1; n >= 0; n--) {
+                const markerModel = markersList.current[n];
+                const markerOptionsModel = markersOptionsList.current[n];
+                const markerNewCoordinates = markerModel.getLngLat();
+                updatedMarkersModel.push({
+                  ...markerOptionsModel,
+                  lnglat: markerNewCoordinates,
+                });
+              }
+              modelUpdate({ markers: updatedMarkersModel });
+            } else {
+              throw Error("markersList and markersOptionsList are not in sync");
+            }
+          });
+
+        markersList.current.push(marker);
+        markersOptionsList.current.push(markerOptions);
+      }
+    }
+  };
+
+  const updateMarkersModel = () => {};
+
+  // initial hook
   useEffect(() => {
     mapboxgl.accessToken = model.mapboxAccessToken;
     const map = new mapboxgl.Map({
@@ -82,6 +128,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       style: "mapbox://styles/mapbox/streets-v12",
       center: [0, 0],
       zoom: 0,
+      projection: "globe",
     });
     // add navigation control
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
@@ -91,39 +138,32 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
 
     // prep basemap
     map.on("load", () => {
-      prepareBasemapList();
+      reloadBasemapList();
       // choose mapbox streets as basemap on load
       setBasemapId(basemapList.current[0]?.id);
-    });
 
-    // add a marker at the center
-    for (const marker of model.markers) {
-      new mapboxgl.Marker()
-        .setLngLat([marker.longitude, marker.latitude])
-        .addTo(map);
-    }
+      reloadOverlayList();
+
+      reloadMarkers();
+    });
   }, [mapContainer]);
 
   // basemap hook
   useEffect(() => {
-    prepareBasemapList();
+    reloadBasemapList();
   }, [model.basemaps]);
+
+  // overlay hook
+  useEffect(() => {
+    reloadOverlayList();
+  }, [model.overlays]);
+
+  // markers hook
+  useEffect(() => {}, [model.markers]);
 
   // item change hook
   useEffect(() => {
-    // check if the map is initialized and itemId is accessible
-    if (mapRef.current && model.itemId) {
-      // Fit the map to the bounding box
-      // mapRef.current.flyTo({
-      //   center: [model.longitude, model.latitude],
-      //   zoom: 18,
-      // });
-      // for (const marker of model.markers) {
-      //   new mapboxgl.Marker()
-      //     .setLngLat([marker.longitude, marker.latitude])
-      //     .addTo(map);
-      // }
-    }
+    reloadMarkers();
   }, [model.itemId]);
 
   const handleBasemapIdChange = (e) => {
@@ -136,16 +176,22 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       mapRef.current.setStyle(basemapItem.url);
     } else {
       throw new Error(
-        `Not Implemented: basemap ${basemapItem.id} is of type "${basemapItem.type}, yet only "style" is implemented`,
+        `Basemap ${basemapItem.id} is of type "${basemapItem.type}, yet only "style" is implemented`,
       );
     }
   };
 
   const handleOverlayIdChange = (e) => {
     setOverlayId(e.target.value);
-    const overlayItem = overlayList.current.find(
-      (item) => item.id === e.target.value,
-    );
+    if (e.target.value) {
+      const overlayItem = overlayList.current.find(
+        (item) => item.id === e.target.value,
+      );
+      mapRef.current.addLayer({
+        ...overlayItem,
+        id: "overlay",
+      });
+    }
   };
 
   return (
@@ -190,13 +236,17 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
             value={overlayId}
             label="Overlay"
             onChange={handleOverlayIdChange}
-          ></Select>
-          {overlayList.current &&
-            overlayList.current.map((overlayItem) => (
-              <MenuItem key={overlayItem.id} value={overlayItem.id}>
-                {overlayItem.name || overlayItem.id}
-              </MenuItem>
-            ))}
+          >
+            <MenuItem value="">
+              <em>None</em>
+            </MenuItem>
+            {overlayList.current &&
+              overlayList.current.map((overlayItem) => (
+                <MenuItem key={overlayItem.id} value={overlayItem.id}>
+                  {overlayItem.name || overlayItem.id}
+                </MenuItem>
+              ))}
+          </Select>
         </FormControl>
       </Box>
     </div>
