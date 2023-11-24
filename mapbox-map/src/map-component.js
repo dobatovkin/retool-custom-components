@@ -97,7 +97,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
               markersList.current.length === markersOptionsList.current.length
             ) {
               const updatedMarkersModel = [];
-              for (let n = markersList.current.length - 1; n >= 0; n--) {
+              for (let n = 0; n <= markersList.current.length - 1; n++) {
                 const markerModel = markersList.current[n];
                 const markerOptionsModel = markersOptionsList.current[n];
                 const markerNewCoordinates = markerModel.getLngLat();
