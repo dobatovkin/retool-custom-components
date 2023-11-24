@@ -118,8 +118,6 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     }
   };
 
-  const updateMarkersModel = () => {};
-
   // initial hook
   useEffect(() => {
     mapboxgl.accessToken = model.mapboxAccessToken;
@@ -145,6 +143,14 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       reloadOverlayList();
 
       reloadMarkers();
+    });
+
+    map.on("moveend", () => {
+      const mapCenter = map.getCenter();
+      mapCenter["z"] = map.getZoom();
+      modelUpdate({
+        mapCenter: mapCenter,
+      });
     });
   }, [mapContainer]);
 
