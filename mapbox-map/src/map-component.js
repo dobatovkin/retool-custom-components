@@ -47,6 +47,8 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
   const [overlayId, setOverlayId] = useState("");
   const markersList = useRef([]);
   const markersOptionsList = useRef([]);
+  const reloadLayersList = useRef(null);
+  const reloadSourcesList = useRef(null);
 
   const reloadBasemapList = () => {
     basemapList.current = [
@@ -118,6 +120,23 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     }
   };
 
+  const addEmptyRootLayer = () => {
+    mapRef.current.addLayer({
+      id: "root",
+      type: "circle",
+      source: {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [],
+          },
+        },
+      },
+    });
+  };
+
   // initial hook
   useEffect(() => {
     mapboxgl.accessToken = model.mapboxAccessToken;
@@ -146,11 +165,24 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     });
 
     map.on("moveend", () => {
-      const mapCenter = map.getCenter();
-      mapCenter["z"] = map.getZoom();
+      const mapCenter = {
+        ...map.getCenter(),
+        z: map.getZoom(),
+      };
       modelUpdate({
         mapCenter: mapCenter,
+        debug: map.getStyle(),
       });
+    });
+
+    map.on("style.load", () => {
+      addEmptyRootLayer();
+      for (const source of reloadSourcesList.current) {
+        map.addSource(source.id, source.properties);
+      }
+      for (const layer of reloadLayersList.current) {
+        map.addLayer(layer);
+      }
     });
   }, [mapContainer]);
 
@@ -179,6 +211,22 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       (item) => item.id === e.target.value,
     );
     if (basemapItem.type === "style") {
+      // get current style
+      reloadLayersList.current = [];
+      reloadSourcesList.current = [];
+      const style = mapRef.current.getStyle();
+      const rootIndex = style.layers.findIndex((layer) => layer.id === "root");
+      for (let i = rootIndex + 1; i <= style.layers.length - 1; i++) {
+        const targetLayer = style.layers[i];
+        const targetSourceId = targetLayer.source;
+        if (!reloadSourcesList.current[targetSourceId]) {
+          reloadSourcesList.current.push({
+            id: targetSourceId,
+            properties: style.sources[targetSourceId],
+          });
+        }
+        reloadLayersList.current.push(targetLayer);
+      }
       mapRef.current.setStyle(basemapItem.url);
     } else {
       throw new Error(
