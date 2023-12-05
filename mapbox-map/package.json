@@ -4,11 +4,10 @@
   "description": "Custom Mapbox map component for Retool",
   "private": true,
   "scripts": {
-    "clean": "rm -rf node_modules && rm -rf dist && rm -rf examples && yarn install",
+    "clean": "rm -rf node_modules && rm -rf dist && rm -rf examples && npm install",
     "dev": "webpack-dev-server --mode=development",
     "dev-examples": "webpack-dev-server --mode=development --config webpack.examples.config.js",
     "prod": "webpack --mode=production",
-    "prod-examples": "webpack --mode=production --config webpack.examples.config.js",
     "prepare": "cd .. && husky install mapbox-map/.husky"
   },
   "keywords": [],
