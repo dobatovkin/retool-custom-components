@@ -1,0 +1,11 @@
+name: Build demo
+run-name: build for ${{ github.actor }}
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+      - run: npm ci
+      - run: npm run prod
+      - run: ls ${{ github.workspace }}
