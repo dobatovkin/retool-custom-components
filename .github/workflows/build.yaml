@@ -5,11 +5,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - run: ls
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 18
+      - run: ls
       - run: cd mapbox-map
+      - run: ls
       - run: npm ci
       - run: npm run prod
       - run: ls
