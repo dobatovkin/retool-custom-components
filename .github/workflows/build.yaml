@@ -6,6 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+      - run: cd ${{ github.workspace }}/mapbox-map
       - run: npm ci
       - run: npm run prod
       - run: ls ${{ github.workspace }}
