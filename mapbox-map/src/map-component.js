@@ -45,23 +45,12 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
   const mapContainer = useRef(null);
   const basemapList = useRef([]);
   const overlayOptionsList = useRef([]);
-  const [basemapId, setBasemapId] = useState("mapbox-streets-v12");
+  const [basemapId, setBasemapId] = useState("");
   const [overlayList, setOverlayList] = useState([]);
   const markersList = useRef([]);
   const markersOptionsList = useRef([]);
   const reloadLayersList = useRef([]);
   const reloadSourcesList = useRef([]);
-
-  const ITEM_HEIGHT = 48;
-  const ITEM_PADDING_TOP = 8;
-  const MenuProps = {
-    PaperProps: {
-      style: {
-        maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
-        width: 250,
-      },
-    },
-  };
 
   const reloadBasemapList = () => {
     basemapList.current = [
@@ -133,9 +122,23 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     }
   };
 
-  const addEmptyRootLayer = () => {
+  const addEmptyRootLayers = () => {
     mapRef.current.addLayer({
       id: "root",
+      type: "circle",
+      source: {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [],
+          },
+        },
+      },
+    });
+    mapRef.current.addLayer({
+      id: "overlay-root",
       type: "circle",
       source: {
         type: "geojson",
@@ -189,7 +192,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     });
 
     map.on("style.load", () => {
-      addEmptyRootLayer();
+      addEmptyRootLayers();
       for (const source of reloadSourcesList.current) {
         map.addSource(source.id, source.properties);
       }
@@ -240,6 +243,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
         }
         reloadLayersList.current.push(targetLayer);
       }
+      // TODO: pick a better name for this property
       mapRef.current.setStyle(basemapItem.url);
     } else {
       throw new Error(
@@ -249,11 +253,45 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
   };
 
   const handleOverlayChange = (event) => {
-    const {
-      target: { value },
-    } = event;
-    setOverlayList(typeof value === "string" ? value.split(",") : value);
-    // TODO: handle overlay array
+    // if autofill is used, event returns string instead of array
+    const overlayActiveLayers =
+      typeof event.target.value === "string"
+        ? value.split(",")
+        : event.target.value;
+
+    // add layers that are missing
+    for (const overlayLayerId of overlayActiveLayers) {
+      const overlayLayer = overlayOptionsList.current.find(
+        (obj) => obj.id === overlayLayerId,
+      );
+      if (!mapRef.current.getLayer(`overlay-${overlayLayer.id}`)) {
+        mapRef.current.addLayer(
+          { ...overlayLayer, id: `overlay-${overlayLayer.id}` },
+          "overlay-root",
+        );
+      }
+    }
+    // remove layers that are turned off
+    for (const overlayItem of overlayOptionsList.current) {
+      const overlayLayerId = `overlay-${overlayItem.id}`;
+      if (
+        !overlayActiveLayers.includes(overlayItem.id) &&
+        mapRef.current.getLayer(overlayLayerId)
+      ) {
+        const overlaySourceId = mapRef.current.getLayer(overlayLayerId).source;
+        mapRef.current.removeLayer(overlayLayerId);
+        // check if source is referenced in any other layer
+        if (
+          !mapRef.current
+            .getStyle()
+            .layers.find((layer) => layer.source === overlaySourceId)
+        ) {
+          mapRef.current.removeSource(overlaySourceId);
+        }
+      }
+    }
+    // update overlay state from event
+    setOverlayList(overlayActiveLayers);
   };
 
   return (
@@ -305,7 +343,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
             {overlayOptionsList.current.map((overlayItem) => (
               <MenuItem key={overlayItem.id} value={overlayItem.id}>
                 <Checkbox checked={overlayList.indexOf(overlayItem.id) > -1} />
-                <ListItemText primary={overlayItem.id} />
+                <ListItemText primary={overlayItem.name || overlayItem.id} />
               </MenuItem>
             ))}
           </Select>
