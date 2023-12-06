@@ -182,6 +182,14 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     // add navigation control
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
+    map.addControl(
+      new mapboxgl.FullscreenControl({
+        container: document.querySelector("body"),
+      }),
+    );
+
+    map.addControl(new mapboxgl.ScaleControl());
+
     // save map instance to ref
     mapRef.current = map;
 
@@ -321,7 +329,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       <Box
         sx={{
           position: "absolute",
-          width: "70vw",
+          width: "50vw",
           margin: "1vw",
           bgcolor: "white",
           borderRadius: "5px",
