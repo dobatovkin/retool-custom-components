@@ -16,6 +16,8 @@ import {
 } from "@mui/material";
 
 import mapboxgl from "!mapbox-gl";
+import MapboxGeocoder from "@mapbox/mapbox-gl-geocoder";
+import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
 
 /**
  * Extended Mapbox GL JS Layer with component-specific properties,
@@ -167,6 +169,16 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
         }
       },
     });
+
+    // add geocoder
+    map.addControl(
+      new MapboxGeocoder({
+        accessToken: mapboxgl.accessToken,
+        mapboxgl: mapboxgl,
+      }),
+      "top-right",
+    );
+
     // add navigation control
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
