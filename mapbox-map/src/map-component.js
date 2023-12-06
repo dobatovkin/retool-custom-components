@@ -264,7 +264,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     // if autofill is used, event returns string instead of array
     const overlayActiveLayers =
       typeof event.target.value === "string"
-        ? value.split(",")
+        ? event.target.value.split(",")
         : event.target.value;
 
     // add layers that are missing
@@ -345,7 +345,16 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
             multiple
             value={overlayList}
             label="Overlay"
-            renderValue={(selected) => selected.join(", ")}
+            renderValue={(selected) => {
+              return selected
+                .map((overlayItemId) => {
+                  const overlayItem = overlayOptionsList.current.find(
+                    (obj) => obj.id === overlayItemId,
+                  );
+                  return overlayItem.metadata?.name || overlayItem.id;
+                })
+                .join(", ");
+            }}
             onChange={handleOverlayChange}
           >
             {overlayOptionsList.current.map((overlayItem) => (
