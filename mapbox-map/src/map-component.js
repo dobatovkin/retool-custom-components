@@ -337,7 +337,6 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
             value={overlayList}
             label="Overlay"
             renderValue={(selected) => selected.join(", ")}
-            MenuProps={MenuProps}
             onChange={handleOverlayChange}
           >
             {overlayOptionsList.current.map((overlayItem) => (
