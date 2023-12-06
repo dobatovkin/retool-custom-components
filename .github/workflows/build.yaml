@@ -1,6 +1,6 @@
 name: Build & Deploy
 run-name: build for ${{ github.actor }}
-on: 
+on:
   push:
     branches: ["main", "dev"]
   workflow_dispatch:
@@ -10,6 +10,8 @@ jobs:
     defaults:
       run:
         working-directory: ./mapbox-map
+    permissions:
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,8 +26,7 @@ jobs:
         uses: actions/upload-pages-artifact@v2
         with:
           # Upload entire repository
-          path: './mapbox-map/dist'
+          path: "./mapbox-map/dist"
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v3
-
