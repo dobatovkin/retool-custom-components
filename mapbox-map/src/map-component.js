@@ -110,7 +110,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
                   lnglat: markerNewCoordinates,
                 });
               }
-              modelUpdate({ markers: updatedMarkersModel });
+              modelUpdate({ updatedMarkers: updatedMarkersModel });
             } else {
               throw Error("markersList and markersOptionsList are not in sync");
             }
@@ -122,23 +122,13 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     }
   };
 
+  const reloadCustomLayers = () => {
+    // TODO: implement function
+  };
+
   const addEmptyRootLayers = () => {
     mapRef.current.addLayer({
       id: "root",
-      type: "circle",
-      source: {
-        type: "geojson",
-        data: {
-          type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates: [],
-          },
-        },
-      },
-    });
-    mapRef.current.addLayer({
-      id: "overlay-root",
       type: "circle",
       source: {
         type: "geojson",
@@ -178,6 +168,8 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       reloadOverlayOptionsList();
 
       reloadMarkers();
+
+      reloadCustomLayers();
     });
 
     map.on("moveend", () => {
@@ -194,7 +186,9 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     map.on("style.load", () => {
       addEmptyRootLayers();
       for (const source of reloadSourcesList.current) {
-        map.addSource(source.id, source.properties);
+        if (!map.getSource(source.id)) {
+          map.addSource(source.id, source.properties);
+        }
       }
       for (const layer of reloadLayersList.current) {
         map.addLayer(layer);
@@ -265,10 +259,10 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
         (obj) => obj.id === overlayLayerId,
       );
       if (!mapRef.current.getLayer(`overlay-${overlayLayer.id}`)) {
-        mapRef.current.addLayer(
-          { ...overlayLayer, id: `overlay-${overlayLayer.id}` },
-          "overlay-root",
-        );
+        mapRef.current.addLayer({
+          ...overlayLayer,
+          id: `overlay-${overlayLayer.id}`,
+        });
       }
     }
     // remove layers that are turned off
