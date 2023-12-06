@@ -152,6 +152,20 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       center: [0, 0],
       zoom: 0,
       projection: "globe",
+      transformRequest: (url, resourceType) => {
+        if (
+          ["Tile", "Source"].includes(resourceType) &&
+          (url.startsWith("https://sites.mapbox.com") ||
+            url.startsWith("https://search-lab-services-production.mapbox.com"))
+        ) {
+          return {
+            url: url,
+            headers: {
+              "x-mapbox-source-system": "datarave-automation",
+            },
+          };
+        }
+      },
     });
     // add navigation control
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
@@ -314,6 +328,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
             {basemapList.current &&
               basemapList.current.map((basemapItem) => (
                 <MenuItem key={basemapItem.id} value={basemapItem.id}>
+                  {/* TODO: put it under basemapItem.metadata.name */}
                   {basemapItem.name}
                 </MenuItem>
               ))}
@@ -336,7 +351,9 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
             {overlayOptionsList.current.map((overlayItem) => (
               <MenuItem key={overlayItem.id} value={overlayItem.id}>
                 <Checkbox checked={overlayList.indexOf(overlayItem.id) > -1} />
-                <ListItemText primary={overlayItem.name || overlayItem.id} />
+                <ListItemText
+                  primary={overlayItem.metadata?.name || overlayItem.id}
+                />
               </MenuItem>
             ))}
           </Select>
