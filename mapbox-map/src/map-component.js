@@ -433,7 +433,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
               padding: "1vw",
             }}
           >
-            <CircularProgress />
+            <CircularProgress size={"2.5vh"} />
           </Box>
         )}
       </Box>
