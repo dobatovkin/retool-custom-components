@@ -2,20 +2,17 @@ import React, { useRef, useEffect, useState } from "react";
 
 import {
   Box,
-  Button,
-  Divider,
-  TextField,
-  Typography,
   FormControl,
   InputLabel,
   MenuItem,
   Select,
-  SelectChangeEvent,
   Checkbox,
   ListItemText,
 } from "@mui/material";
 
 import mapboxgl from "!mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import "./index.css";
 import MapboxGeocoder from "@mapbox/mapbox-gl-geocoder";
 import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
 
