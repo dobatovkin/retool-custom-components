@@ -8,6 +8,7 @@ import {
   Select,
   Checkbox,
   ListItemText,
+  CircularProgress,
 } from "@mui/material";
 
 import mapboxgl from "!mapbox-gl";
@@ -40,16 +41,31 @@ import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
  */
 
 const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
+  // map object
   const mapRef = useRef(null);
+  // html map container
   const mapContainer = useRef(null);
+  // array of basemaps to choose with properties
   const basemapList = useRef([]);
+  // array of overlays to choose with properties
   const overlayOptionsList = useRef([]);
+  // active basemap state
   const [basemapId, setBasemapId] = useState("");
+  // active overlay state
   const [overlayList, setOverlayList] = useState([]);
+  // list of markers that have been added to the map
   const markersList = useRef([]);
+  // list of markers from model with their properties
   const markersOptionsList = useRef([]);
+  // array of layers to readd after basemap change: includes only ones that are added after root layer,
+  // which separates basemap (style) layers from others
   const reloadLayersList = useRef([]);
+  // array of sources to readd after basemap change: includes all that are referenced in reloadLayersList
   const reloadSourcesList = useRef([]);
+  // state of loading to show progress indicator
+  const [loading, setLoading] = useState(false);
+  // timer ref for loading indicator
+  const loadingTimerRef = useRef(null);
 
   const reloadBasemapList = () => {
     basemapList.current = [
@@ -270,6 +286,14 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       }
       // TODO: pick a better name for this property
       mapRef.current.setStyle(basemapItem.url);
+
+      loadingTimerRef.current = setTimeout(() => {
+        setLoading(true);
+      }, 1000);
+      mapRef.current.once("idle", () => {
+        clearTimeout(loadingTimerRef.current);
+        setLoading(false);
+      });
     } else {
       throw new Error(
         `Basemap ${basemapItem.id} is of type "${basemapItem.type}, yet only "style" is implemented`,
@@ -284,6 +308,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
         ? event.target.value.split(",")
         : event.target.value;
 
+    // ? maybe i can make one loop of these two
     // add layers that are missing
     for (const overlayLayerId of overlayActiveLayers) {
       const overlayLayer = overlayOptionsList.current.find(
@@ -317,6 +342,13 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     }
     // update overlay state from event
     setOverlayList(overlayActiveLayers);
+    loadingTimerRef.current = setTimeout(() => {
+      setLoading(true);
+    }, 1000);
+    mapRef.current.once("idle", () => {
+      clearTimeout(loadingTimerRef.current);
+      setLoading(false);
+    });
   };
 
   return (
@@ -326,64 +358,84 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       <Box
         sx={{
           position: "absolute",
-          width: "50vw",
+          width: loading ? "60vw" : "50vw",
           margin: "1vw",
-          bgcolor: "white",
-          borderRadius: "5px",
           zIndex: 1,
+          display: "flex",
+          justifyContent: "space-between",
         }}
       >
-        <FormControl size="small" sx={{ width: "48%", m: "2% 1% 1.5%" }}>
-          <InputLabel id="basemap-select-label">Basemap</InputLabel>
-          <Select
-            labelId="basemap-select-label"
-            id="basemap-select"
-            value={basemapId}
-            label="Basemap"
-            onChange={handleBasemapIdChange}
+        <Box sx={{ width: "50vw", bgcolor: "white", borderRadius: "5px" }}>
+          <FormControl
+            fullWidth
+            size="small"
+            sx={{ width: "48%", m: "2% 1% 1.5%" }}
           >
-            {basemapList.current &&
-              basemapList.current.map((basemapItem) => (
-                <MenuItem key={basemapItem.id} value={basemapItem.id}>
-                  {/* TODO: put it under basemapItem.metadata.name */}
-                  {basemapItem.name}
+            <InputLabel id="basemap-select-label">Basemap</InputLabel>
+            <Select
+              labelId="basemap-select-label"
+              id="basemap-select"
+              value={basemapId}
+              label="Basemap"
+              onChange={handleBasemapIdChange}
+            >
+              {basemapList.current &&
+                basemapList.current.map((basemapItem) => (
+                  <MenuItem key={basemapItem.id} value={basemapItem.id}>
+                    {/* TODO: put it under basemapItem.metadata.name */}
+                    {basemapItem.name}
+                  </MenuItem>
+                ))}
+            </Select>
+          </FormControl>
+          <FormControl
+            size="small"
+            sx={{ margin: "10px", width: "48%", m: "2% 1% 1.5%" }}
+          >
+            <InputLabel id="overlay-select-label">Overlay</InputLabel>
+            <Select
+              id="overlay-select"
+              labelId="overlay-select-label"
+              multiple
+              value={overlayList}
+              label="Overlay"
+              renderValue={(selected) => {
+                return selected
+                  .map((overlayItemId) => {
+                    const overlayItem = overlayOptionsList.current.find(
+                      (obj) => obj.id === overlayItemId,
+                    );
+                    return overlayItem.metadata?.name || overlayItem.id;
+                  })
+                  .join(", ");
+              }}
+              onChange={handleOverlayChange}
+            >
+              {overlayOptionsList.current.map((overlayItem) => (
+                <MenuItem key={overlayItem.id} value={overlayItem.id}>
+                  <Checkbox
+                    checked={overlayList.indexOf(overlayItem.id) > -1}
+                  />
+                  <ListItemText
+                    primary={overlayItem.metadata?.name || overlayItem.id}
+                  />
                 </MenuItem>
               ))}
-          </Select>
-        </FormControl>
-        <FormControl
-          size="small"
-          sx={{ margin: "10px", width: "48%", m: "2% 1% 1.5%" }}
-        >
-          <InputLabel id="overlay-select-label">Overlay</InputLabel>
-          <Select
-            id="overlay-select"
-            labelId="overlay-select-label"
-            multiple
-            value={overlayList}
-            label="Overlay"
-            renderValue={(selected) => {
-              return selected
-                .map((overlayItemId) => {
-                  const overlayItem = overlayOptionsList.current.find(
-                    (obj) => obj.id === overlayItemId,
-                  );
-                  return overlayItem.metadata?.name || overlayItem.id;
-                })
-                .join(", ");
+            </Select>
+          </FormControl>
+        </Box>
+
+        {loading && (
+          <Box
+            sx={{
+              width: "5vw",
+              flexGrow: 1,
+              padding: "1vw",
             }}
-            onChange={handleOverlayChange}
           >
-            {overlayOptionsList.current.map((overlayItem) => (
-              <MenuItem key={overlayItem.id} value={overlayItem.id}>
-                <Checkbox checked={overlayList.indexOf(overlayItem.id) > -1} />
-                <ListItemText
-                  primary={overlayItem.metadata?.name || overlayItem.id}
-                />
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+            <CircularProgress />
+          </Box>
+        )}
       </Box>
     </div>
   );
