@@ -16,6 +16,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import "./index.css";
 import MapboxGeocoder from "@mapbox/mapbox-gl-geocoder";
 import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
+import isEqual from "lodash.isequal";
 
 /**
  * Extended Mapbox GL JS Layer with component-specific properties,
@@ -97,8 +98,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
   };
 
   const reloadMarkers = () => {
-    // check if the map is initialized and itemId is accessible
-    if (mapRef.current && model.markers) {
+    if (mapRef.current.isStyleLoaded() && model.markers) {
       // cleanup previous markers
       for (let i = markersList.current.length - 1; i >= 0; i--) {
         markersList.current[i].remove();
@@ -138,7 +138,34 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
   };
 
   const reloadCustomLayers = () => {
-    // TODO: implement function
+    if (mapRef.current.isStyleLoaded() && model.layers) {
+      const style = mapRef.current.getStyle();
+      // remove remaining custom layers
+      const sourceIdsToRemove = [];
+      style.layers.forEach((layer) => {
+        if (layer.id.startsWith("_custom-")) {
+          mapRef.current.removeLayer(layer.id);
+          sourceIdsToRemove.push(layer.source);
+        }
+      });
+      sourceIdsToRemove.forEach((sourceId) => {
+        if (
+          !mapRef.current
+            .getStyle()
+            .layers.some((layer) => layer.source === sourceId)
+        ) {
+          mapRef.current.removeSource(sourceId);
+        }
+      });
+
+      // add layers from model
+      for (const customLayer of model.layers) {
+        mapRef.current.addLayer({
+          ...customLayer,
+          id: `_custom-${customLayer.id}`,
+        });
+      }
+    }
   };
 
   const addEmptyRootLayers = () => {
@@ -155,6 +182,16 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
           },
         },
       },
+    });
+  };
+
+  const setLoadingTillIdle = () => {
+    loadingTimerRef.current = setTimeout(() => {
+      setLoading(true);
+    }, 1000);
+    mapRef.current.once("idle", () => {
+      clearTimeout(loadingTimerRef.current);
+      setLoading(false);
     });
   };
 
@@ -183,7 +220,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       },
     });
 
-    // add geocoder
+    // add map controls
     map.addControl(
       new MapboxGeocoder({
         accessToken: mapboxgl.accessToken,
@@ -192,7 +229,6 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       "top-right",
     );
 
-    // add navigation control
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
     map.addControl(
@@ -208,6 +244,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
 
     // prep basemap
     map.on("load", () => {
+      console.log("map load event");
       reloadBasemapList();
       // choose mapbox streets as basemap on load
       setBasemapId(basemapList.current[0]?.id);
@@ -231,6 +268,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     });
 
     map.on("style.load", () => {
+      console.log("style load event");
       addEmptyRootLayers();
       for (const source of reloadSourcesList.current) {
         if (!map.getSource(source.id)) {
@@ -241,28 +279,67 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
         map.addLayer(layer);
       }
     });
-  }, [mapContainer]);
+  }, []);
+
+  // the states for proper model update detection for properties that are objects
+  const [modelMarkers, setModelMarkers] = useState(null);
+  const [modelLayers, setModelLayers] = useState(null);
+  const [modelBasemaps, setModelBasemaps] = useState(null);
+  const [modelOverlays, setModelOverlays] = useState(null);
 
   // basemap hook
   useEffect(() => {
+    if (isEqual(model.basemaps, modelBasemaps)) {
+      return;
+    } else {
+      setModelBasemaps(model.basemaps);
+    }
+
     reloadBasemapList();
   }, [model.basemaps]);
 
   // overlay hook
   useEffect(() => {
+    if (isEqual(model.overlays, modelOverlays)) {
+      return;
+    } else {
+      setModelOverlays(model.overlays);
+    }
+
     reloadOverlayOptionsList();
   }, [model.overlays]);
 
   // markers hook
-  useEffect(() => {}, [model.markers]);
+  useEffect(() => {
+    if (isEqual(model.markers, modelMarkers)) {
+      return;
+    } else {
+      setModelMarkers(model.markers);
+    }
+
+    reloadMarkers();
+  }, [model.markers]);
+
+  // custom layers hook
+  useEffect(() => {
+    if (isEqual(model.layers, modelLayers)) {
+      return;
+    } else {
+      setModelLayers(model.layers);
+    }
+
+    reloadCustomLayers();
+  }, [model.layers]);
 
   // item change hook
   useEffect(() => {
     reloadMarkers();
+    reloadCustomLayers();
   }, [model.itemId]);
 
   const handleBasemapIdChange = (e) => {
     setBasemapId(e.target.value);
+    console.log("basemap load");
     //find an item with the name being set
     const basemapItem = basemapList.current.find(
       (item) => item.id === e.target.value,
@@ -287,13 +364,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       // TODO: pick a better name for this property
       mapRef.current.setStyle(basemapItem.url);
 
-      loadingTimerRef.current = setTimeout(() => {
-        setLoading(true);
-      }, 1000);
-      mapRef.current.once("idle", () => {
-        clearTimeout(loadingTimerRef.current);
-        setLoading(false);
-      });
+      setLoadingTillIdle();
     } else {
       throw new Error(
         `Basemap ${basemapItem.id} is of type "${basemapItem.type}, yet only "style" is implemented`,
@@ -308,22 +379,22 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
         ? event.target.value.split(",")
         : event.target.value;
 
-    // ? maybe i can make one loop of these two
+    // ? maybe there is a way to make one loop of these two
     // add layers that are missing
     for (const overlayLayerId of overlayActiveLayers) {
       const overlayLayer = overlayOptionsList.current.find(
         (obj) => obj.id === overlayLayerId,
       );
-      if (!mapRef.current.getLayer(`overlay-${overlayLayer.id}`)) {
+      if (!mapRef.current.getLayer(`_overlay-${overlayLayer.id}`)) {
         mapRef.current.addLayer({
           ...overlayLayer,
-          id: `overlay-${overlayLayer.id}`,
+          id: `_overlay-${overlayLayer.id}`,
         });
       }
     }
     // remove layers that are turned off
     for (const overlayItem of overlayOptionsList.current) {
-      const overlayLayerId = `overlay-${overlayItem.id}`;
+      const overlayLayerId = `_overlay-${overlayItem.id}`;
       if (
         !overlayActiveLayers.includes(overlayItem.id) &&
         mapRef.current.getLayer(overlayLayerId)
@@ -342,13 +413,8 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     }
     // update overlay state from event
     setOverlayList(overlayActiveLayers);
-    loadingTimerRef.current = setTimeout(() => {
-      setLoading(true);
-    }, 1000);
-    mapRef.current.once("idle", () => {
-      clearTimeout(loadingTimerRef.current);
-      setLoading(false);
-    });
+    console.log("overlay reload");
+    setLoadingTillIdle();
   };
 
   return (
@@ -358,14 +424,14 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       <Box
         sx={{
           position: "absolute",
-          width: loading ? "60vw" : "50vw",
+          width: loading ? "55vw" : "50vw",
           margin: "1vw",
           zIndex: 1,
           display: "flex",
-          justifyContent: "space-between",
+          justifyContent: "start",
         }}
       >
-        <Box sx={{ width: "50vw", bgcolor: "white", borderRadius: "5px" }}>
+        <Box sx={{ minWidth: "50vw", bgcolor: "white", borderRadius: "5px" }}>
           <FormControl
             fullWidth
             size="small"
@@ -429,11 +495,10 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
           <Box
             sx={{
               width: "5vw",
-              flexGrow: 1,
               padding: "1vw",
             }}
           >
-            <CircularProgress size={"2.5vh"} />
+            <CircularProgress size={"2rem"} />
           </Box>
         )}
       </Box>
