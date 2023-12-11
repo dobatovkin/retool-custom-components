@@ -225,6 +225,8 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       new MapboxGeocoder({
         accessToken: mapboxgl.accessToken,
         mapboxgl: mapboxgl,
+        language: "en",
+        reverseGeocode: true,
       }),
       "top-right",
     );
