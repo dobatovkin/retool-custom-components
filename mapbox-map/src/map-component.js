@@ -9,36 +9,51 @@ import {
   Checkbox,
   ListItemText,
   CircularProgress,
+  easing,
 } from "@mui/material";
 
 import mapboxgl from "!mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "./index.css";
+
 import MapboxGeocoder from "@mapbox/mapbox-gl-geocoder";
 import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
+
 import isEqual from "lodash.isequal";
+import LegendControl from "mapboxgl-legend";
+import "mapboxgl-legend/dist/style.css";
 
 /**
- * Extended Mapbox GL JS Layer with component-specific properties,
+ * Extended Mapbox GL JS Layer with component-specific properties.
  * @typedef {object} MapComponentLayer
  * @extends import("mapbox-gl").Layer
- * @property {boolean} itemDependant whether to rerender layer on `itemId` change
+ * @property {string} [metadata.name] Name for display on the legend and on the menus
+ * @property {import("mapbox-gl").LngLatBoundsLike} [metadata.bbox] Bounding box for current layer. If not provided, component will try to compure it.
  */
 
 /**
  * Extended Mapbox GL JS Marker with component-specific properties.
  * @typedef {object} MapComponentMarker
- * @extends import("mapbox-gl").Layer
- * @property {boolean} itemDependant whether to rerender marker on `itemId` change
+ * @extends import("mapbox-gl").MarkerOptions
+ * @property {}
+ */
+
+/**
+ * Basemap to be displayed under all other layers. Only Mabox GL Styles are currently supported.
+ * @typedef {object} MapComponentBasemap
+ * @property {string} id Unique ID of the basemap
+ * @property {string} type Basemap type. Currently only `style` is suppurted
+ * @property {string} [name] name to display in the menus
  */
 
 /**
  * @typedef {object} MapComponentModel
  * @property {string} mapboxAccessToken Access token for Mapbox GL JS
  * @property {string} itemId ID of the current selected item in Retool. Change causes item-specific layers and markers to rerender.
- * @property {object[]} basemaps
+ * @property {MapComponentBasemap[]} basemaps
  * @property {MapComponentLayer[]} layers Array of layers to display.
  * @property {import("mapbox-gl").MarkerOptions[]} markers Array of markers to display.
+ * @property {import("mapbox-gl").Layer[]} overlays Array of toggable layers
  */
 
 const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
@@ -67,6 +82,8 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
   const [loading, setLoading] = useState(false);
   // timer ref for loading indicator
   const loadingTimerRef = useRef(null);
+  // active instance of LegendControl to manipulate
+  const legendRef = useRef(null);
 
   const reloadBasemapList = () => {
     basemapList.current = [
@@ -74,14 +91,13 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
         id: "mapbox-streets-v12",
         name: "Mapbox Streets",
         type: "style",
-        url: "mapbox://styles/mapbox/streets-v12",
-        default: true,
+        data: "mapbox://styles/mapbox/streets-v12",
       },
       {
         id: "mapbox-satellite-v9",
         name: "Mapbox Satellite",
         type: "style",
-        url: "mapbox://styles/mapbox/satellite-v9",
+        data: "mapbox://styles/mapbox/satellite-v9",
       },
     ];
     // add basemaps from model
@@ -160,6 +176,15 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
 
       // add layers from model
       for (const customLayer of model.layers) {
+        // if this layer does not have bbox in his metadata, try to compute it
+        if (
+          !customLayer.metadata?.bbox &&
+          customLayer.source?.type === "geojson"
+        ) {
+          customLayer.metadata.bbox = calculateGeojsonBbox(
+            customLayer.source.data,
+          );
+        }
         mapRef.current.addLayer({
           ...customLayer,
           id: `_custom-${customLayer.id}`,
@@ -168,7 +193,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     }
   };
 
-  const addEmptyRootLayers = () => {
+  const addEmptyRootLayer = () => {
     mapRef.current.addLayer({
       id: "root",
       type: "circle",
@@ -193,6 +218,88 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       clearTimeout(loadingTimerRef.current);
       setLoading(false);
     });
+  };
+
+  /**
+   * Function to calculate bounding box for GeoJSON object.
+   * @param {GeoJSON} geojson
+   * @returns {LngLatBounds}
+   */
+  function calculateGeojsonBbox(geojson) {
+    let bbox = [Infinity, Infinity, -Infinity, -Infinity];
+
+    function updateBoundingBox(coordinates) {
+      bbox[0] = Math.min(bbox[0], coordinates[0]);
+      bbox[1] = Math.min(bbox[1], coordinates[1]);
+      bbox[2] = Math.max(bbox[2], coordinates[0]);
+      bbox[3] = Math.max(bbox[3], coordinates[1]);
+    }
+
+    function processGeometry(geometry) {
+      switch (geometry.type) {
+        case "Point":
+          updateBoundingBox(geometry.coordinates);
+          break;
+
+        case "MultiPoint":
+        case "LineString":
+          geometry.coordinates.forEach(updateBoundingBox);
+          break;
+
+        case "MultiLineString":
+        case "Polygon":
+          geometry.coordinates.forEach((subCoords) =>
+            subCoords.forEach(updateBoundingBox),
+          );
+          break;
+
+        case "MultiPolygon":
+          geometry.coordinates.forEach((polyCoords) =>
+            polyCoords.forEach((subCoords) =>
+              subCoords.forEach(updateBoundingBox),
+            ),
+          );
+          break;
+
+        case "GeometryCollection":
+          geometry.geometries.forEach(processGeometry);
+          break;
+
+        default:
+          throw new Error("Unsupported geometry type: " + type);
+      }
+    }
+
+    function processFeature(feature) {
+      if (feature.geometry) {
+        processGeometry(feature.geometry);
+      }
+    }
+
+    if (geojson.type === "FeatureCollection") {
+      geojson.features.forEach(processFeature);
+    } else if (geojson.type === "Feature") {
+      processFeature(geojson);
+    } else {
+      throw new Error("Unsupported GeoJSON type: " + geojson.type);
+    }
+
+    return new mapboxgl.LngLatBounds(bbox);
+  }
+
+  const calculateItemBbox = () => {
+    const bbox = new mapboxgl.LngLatBounds(0, 0, 0, 0);
+    markersList.current.forEach((marker) => {
+      bbox.extend(marker.getLngLat());
+    });
+    const style = mapRef.current.getStyle();
+    style.layers.forEach((layer) => {
+      if (layer.id.startsWith("_custom-") && layer.metadata?.bbox) {
+        bbox.extend(layer.metadata.bbox._sw);
+        bbox.extend(layer.metadata.bbox._ne);
+      }
+    });
+    return bbox;
   };
 
   // initial hook
@@ -241,12 +348,36 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
 
     map.addControl(new mapboxgl.ScaleControl());
 
+    legendRef.current = new LegendControl({
+      highlight: true,
+      toggler: true,
+      layers: [/^_custom/],
+      onToggle: (layerId, state) => {
+        if (state) {
+          const layer = map.getLayer(layerId);
+          if (layer.metadata?.bbox) {
+            map.fitBounds(
+              new mapboxgl.LngLatBounds(
+                layer.metadata.bbox._sw,
+                layer.metadata.bbox._ne,
+              ),
+              {
+                padding: 100,
+                speed: 10,
+                maxZoom: 18.5,
+              },
+            );
+          }
+        }
+      },
+    });
+    map.addControl(legendRef.current, "bottom-left");
+
     // save map instance to ref
     mapRef.current = map;
 
     // prep basemap
     map.on("load", () => {
-      console.log("map load event");
       reloadBasemapList();
       // choose mapbox streets as basemap on load
       setBasemapId(basemapList.current[0]?.id);
@@ -256,6 +387,14 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       reloadMarkers();
 
       reloadCustomLayers();
+
+      map.once("idle", () => {
+        map.fitBounds(calculateItemBbox(), {
+          padding: 100,
+          speed: 10,
+          maxZoom: 18.5,
+        });
+      });
     });
 
     map.on("moveend", () => {
@@ -270,8 +409,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     });
 
     map.on("style.load", () => {
-      console.log("style load event");
-      addEmptyRootLayers();
+      addEmptyRootLayer();
       for (const source of reloadSourcesList.current) {
         if (!map.getSource(source.id)) {
           map.addSource(source.id, source.properties);
@@ -280,6 +418,11 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       for (const layer of reloadLayersList.current) {
         map.addLayer(layer);
       }
+    });
+
+    map.on("click", (e) => {
+      const features = map.queryRenderedFeatures(e.point);
+      modelUpdate({ selectedFeatureProperties: features[0]?.properties });
     });
   }, []);
 
@@ -335,13 +478,19 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
 
   // item change hook
   useEffect(() => {
-    reloadMarkers();
-    reloadCustomLayers();
+    mapRef.current.once("idle", () => {
+      reloadMarkers();
+      reloadCustomLayers();
+      mapRef.current.fitBounds(calculateItemBbox(), {
+        padding: 100,
+        speed: 10,
+        maxZoom: 18.5,
+      });
+    });
   }, [model.itemId]);
 
   const handleBasemapIdChange = (e) => {
     setBasemapId(e.target.value);
-    console.log("basemap load");
     //find an item with the name being set
     const basemapItem = basemapList.current.find(
       (item) => item.id === e.target.value,
@@ -363,8 +512,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
         }
         reloadLayersList.current.push(targetLayer);
       }
-      // TODO: pick a better name for this property
-      mapRef.current.setStyle(basemapItem.url);
+      mapRef.current.setStyle(basemapItem.data);
 
       setLoadingTillIdle();
     } else {
@@ -415,7 +563,6 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     }
     // update overlay state from event
     setOverlayList(overlayActiveLayers);
-    console.log("overlay reload");
     setLoadingTillIdle();
   };
 
@@ -450,7 +597,6 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
               {basemapList.current &&
                 basemapList.current.map((basemapItem) => (
                   <MenuItem key={basemapItem.id} value={basemapItem.id}>
-                    {/* TODO: put it under basemapItem.metadata.name */}
                     {basemapItem.name}
                   </MenuItem>
                 ))}
