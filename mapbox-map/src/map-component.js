@@ -28,14 +28,7 @@ import "mapboxgl-legend/dist/style.css";
  * @typedef {object} MapComponentLayer
  * @extends import("mapbox-gl").Layer
  * @property {string} [metadata.name] Name for display on the legend and on the menus
- * @property {import("mapbox-gl").LngLatBoundsLike} [metadata.bbox] Bounding box for current layer. If not provided, component will try to compure it.
- */
-
-/**
- * Extended Mapbox GL JS Marker with component-specific properties.
- * @typedef {object} MapComponentMarker
- * @extends import("mapbox-gl").MarkerOptions
- * @property {}
+ * @property {import("mapbox-gl").LngLatBoundsLike} [metadata.bbox] Bounding box for current layer. If not provided, component will try to get it from geojson bbox property, if there is no a compure it.
  */
 
 /**
@@ -50,7 +43,7 @@ import "mapboxgl-legend/dist/style.css";
  * @typedef {object} MapComponentModel
  * @property {string} mapboxAccessToken Access token for Mapbox GL JS
  * @property {string} itemId ID of the current selected item in Retool. Change causes item-specific layers and markers to rerender.
- * @property {MapComponentBasemap[]} basemaps
+ * @property {MapComponentBasemap[]} basemaps Array of basemaps to be displayed
  * @property {MapComponentLayer[]} layers Array of layers to display.
  * @property {import("mapbox-gl").MarkerOptions[]} markers Array of markers to display.
  * @property {import("mapbox-gl").Layer[]} overlays Array of toggable layers
