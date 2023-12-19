@@ -9,7 +9,6 @@ import {
   Checkbox,
   ListItemText,
   CircularProgress,
-  easing,
 } from "@mui/material";
 
 import mapboxgl from "!mapbox-gl";
