@@ -22,33 +22,54 @@ import isEqual from "lodash.isequal";
 import LegendControl from "mapboxgl-legend";
 import "mapboxgl-legend/dist/style.css";
 
+import calculateGeojsonBbox from "@turf/bbox";
+
 /**
  * Extended Mapbox GL JS Layer with component-specific properties.
  * @typedef {object} MapComponentLayer
  * @extends import("mapbox-gl").Layer
- * @property {string} [metadata.name] Name for display on the legend and on the menus
- * @property {import("mapbox-gl").LngLatBoundsLike} [metadata.bbox] Bounding box for current layer. If not provided, component will try to get it from geojson bbox property, if there is no a compure it.
+ * @property {string} [metadata.name] - Name for display on the legend and on the menus
+ * @property {import("mapbox-gl").extendsBoundsLike} [metadata.bbox] - Bounding box for current layer. If not provided, component will try to get it from geojson bbox property, if there is no a compure it.
  */
 
 /**
  * Basemap to be displayed under all other layers. Only Mabox GL Styles are currently supported.
  * @typedef {object} MapComponentBasemap
- * @property {string} id Unique ID of the basemap
- * @property {string} type Basemap type. Currently only `style` is suppurted
- * @property {string} [name] name to display in the menus
+ * @property {string} id - Unique ID of the basemap
+ * @property {string} type - Basemap type. Currently only `style` is suppurted
+ * @property {string} [name] - Name to display in the menus
+ */
+
+/**
+ * @typedef {object} MapComponentCurrentCenter
+ * @extends import("mapbox-gl").LngLat
+ * @property {number} z - Map current zoom
  */
 
 /**
  * @typedef {object} MapComponentModel
- * @property {string} mapboxAccessToken Access token for Mapbox GL JS
- * @property {string} itemId ID of the current selected item in Retool. Change causes item-specific layers and markers to rerender.
- * @property {MapComponentBasemap[]} basemaps Array of basemaps to be displayed
- * @property {MapComponentLayer[]} layers Array of layers to display.
- * @property {import("mapbox-gl").MarkerOptions[]} markers Array of markers to display.
- * @property {import("mapbox-gl").Layer[]} overlays Array of toggable layers
+ * @property {string} mapboxAccessToken - [input] Access token for Mapbox GL JS
+ * @property {string} itemId - [input] ID of the current selected item in Retool. Change causes item-specific layers and markers to rerender.
+ * @property {MapComponentBasemap[]} [basemaps] - [input] Array of basemaps to be displayed
+ * @property {MapComponentLayer[]} [layers] - Array of layers to display. It is intented to be used for layers that change on item's change.
+ * @property {import("mapbox-gl").MarkerOptions[]} [markers] - [input] Array of markers to display.
+ * @property {import("mapbox-gl").Layer[]} [overlays] - [input] Array of toggable layers.
+ * @property {import("mapbox-gl").MarkerOptions[]} [updatedMarkers]- [output] Array of markers with updated coordinates.
+ * @property {object} [selectedFeatureProperties] - [output] Properties of the feature that has been clicked on.
+ * @property {MapComponentCurrentCenter} [mapCenter] - [output] Map current position center and zoom. Updates on evere map move end event.
  */
 
+//
 const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
+  const CUSTOM_LAYER_PREFIX = "_custom-";
+  const OVERLAY_LAYER_PREFIX = "_overlay-";
+
+  const FIT_BOUNDS_OPTIONS = {
+    padding: 150,
+    speed: 8,
+    maxZoom: 18.5,
+  };
+
   // map object
   const mapRef = useRef(null);
   // html map container
@@ -151,7 +172,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       // remove remaining custom layers
       const sourceIdsToRemove = [];
       style.layers.forEach((layer) => {
-        if (layer.id.startsWith("_custom-")) {
+        if (layer.id.startsWith(CUSTOM_LAYER_PREFIX)) {
           mapRef.current.removeLayer(layer.id);
           sourceIdsToRemove.push(layer.source);
         }
@@ -173,13 +194,13 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
           !customLayer.metadata?.bbox &&
           customLayer.source?.type === "geojson"
         ) {
-          customLayer.metadata.bbox = calculateGeojsonBbox(
-            customLayer.source.data,
+          customLayer.metadata.bbox = mapboxgl.LngLatBounds.convert(
+            calculateGeojsonBbox(customLayer.source.data),
           );
         }
         mapRef.current.addLayer({
           ...customLayer,
-          id: `_custom-${customLayer.id}`,
+          id: `${CUSTOM_LAYER_PREFIX}${customLayer.id}`,
         });
       }
     }
@@ -203,11 +224,15 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
   };
 
   const setLoadingTillIdle = () => {
+    if (loadingTimerRef.current !== null) {
+      clearTimeout(loadingTimerRef.current);
+    }
     loadingTimerRef.current = setTimeout(() => {
       setLoading(true);
     }, 1000);
     mapRef.current.once("idle", () => {
       clearTimeout(loadingTimerRef.current);
+      loadingTimerRef.current = null;
       setLoading(false);
     });
   };
@@ -217,67 +242,67 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
    * @param {GeoJSON} geojson
    * @returns {LngLatBounds}
    */
-  function calculateGeojsonBbox(geojson) {
-    let bbox = [Infinity, Infinity, -Infinity, -Infinity];
+  // function calculateGeojsonBbox(geojson) {
+  //   let bbox = [Infinity, Infinity, -Infinity, -Infinity];
 
-    function updateBoundingBox(coordinates) {
-      bbox[0] = Math.min(bbox[0], coordinates[0]);
-      bbox[1] = Math.min(bbox[1], coordinates[1]);
-      bbox[2] = Math.max(bbox[2], coordinates[0]);
-      bbox[3] = Math.max(bbox[3], coordinates[1]);
-    }
+  //   function updateBoundingBox(coordinates) {
+  //     bbox[0] = Math.min(bbox[0], coordinates[0]);
+  //     bbox[1] = Math.min(bbox[1], coordinates[1]);
+  //     bbox[2] = Math.max(bbox[2], coordinates[0]);
+  //     bbox[3] = Math.max(bbox[3], coordinates[1]);
+  //   }
 
-    function processGeometry(geometry) {
-      switch (geometry.type) {
-        case "Point":
-          updateBoundingBox(geometry.coordinates);
-          break;
+  //   function processGeometry(geometry) {
+  //     switch (geometry.type) {
+  //       case "Point":
+  //         updateBoundingBox(geometry.coordinates);
+  //         break;
 
-        case "MultiPoint":
-        case "LineString":
-          geometry.coordinates.forEach(updateBoundingBox);
-          break;
+  //       case "MultiPoint":
+  //       case "LineString":
+  //         geometry.coordinates.forEach(updateBoundingBox);
+  //         break;
 
-        case "MultiLineString":
-        case "Polygon":
-          geometry.coordinates.forEach((subCoords) =>
-            subCoords.forEach(updateBoundingBox),
-          );
-          break;
+  //       case "MultiLineString":
+  //       case "Polygon":
+  //         geometry.coordinates.forEach((subCoords) =>
+  //           subCoords.forEach(updateBoundingBox),
+  //         );
+  //         break;
 
-        case "MultiPolygon":
-          geometry.coordinates.forEach((polyCoords) =>
-            polyCoords.forEach((subCoords) =>
-              subCoords.forEach(updateBoundingBox),
-            ),
-          );
-          break;
+  //       case "MultiPolygon":
+  //         geometry.coordinates.forEach((polyCoords) =>
+  //           polyCoords.forEach((subCoords) =>
+  //             subCoords.forEach(updateBoundingBox),
+  //           ),
+  //         );
+  //         break;
 
-        case "GeometryCollection":
-          geometry.geometries.forEach(processGeometry);
-          break;
+  //       case "GeometryCollection":
+  //         geometry.geometries.forEach(processGeometry);
+  //         break;
 
-        default:
-          throw new Error("Unsupported geometry type: " + type);
-      }
-    }
+  //       default:
+  //         throw new Error("Unsupported geometry type: " + type);
+  //     }
+  //   }
 
-    function processFeature(feature) {
-      if (feature.geometry) {
-        processGeometry(feature.geometry);
-      }
-    }
+  //   function processFeature(feature) {
+  //     if (feature.geometry) {
+  //       processGeometry(feature.geometry);
+  //     }
+  //   }
 
-    if (geojson.type === "FeatureCollection") {
-      geojson.features.forEach(processFeature);
-    } else if (geojson.type === "Feature") {
-      processFeature(geojson);
-    } else {
-      throw new Error("Unsupported GeoJSON type: " + geojson.type);
-    }
+  //   if (geojson.type === "FeatureCollection") {
+  //     geojson.features.forEach(processFeature);
+  //   } else if (geojson.type === "Feature") {
+  //     processFeature(geojson);
+  //   } else {
+  //     throw new Error("Unsupported GeoJSON type: " + geojson.type);
+  //   }
 
-    return new mapboxgl.LngLatBounds(bbox);
-  }
+  //   return new mapboxgl.LngLatBounds(bbox);
+  // }
 
   const calculateItemBbox = () => {
     const bbox = new mapboxgl.LngLatBounds(0, 0, 0, 0);
@@ -286,7 +311,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     });
     const style = mapRef.current.getStyle();
     style.layers.forEach((layer) => {
-      if (layer.id.startsWith("_custom-") && layer.metadata?.bbox) {
+      if (layer.id.startsWith(CUSTOM_LAYER_PREFIX) && layer.metadata?.bbox) {
         bbox.extend(layer.metadata.bbox._sw);
         bbox.extend(layer.metadata.bbox._ne);
       }
@@ -302,7 +327,8 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       style: "mapbox://styles/mapbox/streets-v12",
       center: [0, 0],
       zoom: 0,
-      projection: "globe",
+      projection: "mercator",
+      // transforming each request that relies on internal search resources to inclu
       transformRequest: (url, resourceType) => {
         if (
           ["Tile", "Source"].includes(resourceType) &&
@@ -343,7 +369,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     legendRef.current = new LegendControl({
       highlight: true,
       toggler: true,
-      layers: [/^_custom/],
+      layers: [new RegExp(`^${CUSTOM_LAYER_PREFIX}`)],
       onToggle: (layerId, state) => {
         if (state) {
           const layer = map.getLayer(layerId);
@@ -353,11 +379,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
                 layer.metadata.bbox._sw,
                 layer.metadata.bbox._ne,
               ),
-              {
-                padding: 100,
-                speed: 10,
-                maxZoom: 18.5,
-              },
+              FIT_BOUNDS_OPTIONS,
             );
           }
         }
@@ -381,11 +403,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       reloadCustomLayers();
 
       map.once("idle", () => {
-        map.fitBounds(calculateItemBbox(), {
-          padding: 100,
-          speed: 10,
-          maxZoom: 18.5,
-        });
+        map.fitBounds(calculateItemBbox(), FIT_BOUNDS_OPTIONS);
       });
     });
 
@@ -396,7 +414,6 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       };
       modelUpdate({
         mapCenter: mapCenter,
-        debug: map.getStyle(),
       });
     });
 
@@ -473,11 +490,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     mapRef.current.once("idle", () => {
       reloadMarkers();
       reloadCustomLayers();
-      mapRef.current.fitBounds(calculateItemBbox(), {
-        padding: 100,
-        speed: 10,
-        maxZoom: 18.5,
-      });
+      mapRef.current.fitBounds(calculateItemBbox(), FIT_BOUNDS_OPTIONS);
     });
   }, [model.itemId]);
 
@@ -527,16 +540,18 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       const overlayLayer = overlayOptionsList.current.find(
         (obj) => obj.id === overlayLayerId,
       );
-      if (!mapRef.current.getLayer(`_overlay-${overlayLayer.id}`)) {
+      if (
+        !mapRef.current.getLayer(`${OVERLAY_LAYER_PREFIX}${overlayLayer.id}`)
+      ) {
         mapRef.current.addLayer({
           ...overlayLayer,
-          id: `_overlay-${overlayLayer.id}`,
+          id: `${OVERLAY_LAYER_PREFIX}${overlayLayer.id}`,
         });
       }
     }
     // remove layers that are turned off
     for (const overlayItem of overlayOptionsList.current) {
-      const overlayLayerId = `_overlay-${overlayItem.id}`;
+      const overlayLayerId = `${OVERLAY_LAYER_PREFIX}${overlayItem.id}`;
       if (
         !overlayActiveLayers.includes(overlayItem.id) &&
         mapRef.current.getLayer(overlayLayerId)
