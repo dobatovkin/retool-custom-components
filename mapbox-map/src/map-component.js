@@ -328,7 +328,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
       center: [0, 0],
       zoom: 0,
       projection: "mercator",
-      // transforming each request that relies on internal search resources to inclu
+      // transforming each request that relies on internal search resources to include `x-mapbox-source-system` header
       transformRequest: (url, resourceType) => {
         if (
           ["Tile", "Source"].includes(resourceType) &&
