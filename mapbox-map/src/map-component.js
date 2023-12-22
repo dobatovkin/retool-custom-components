@@ -47,6 +47,12 @@ import calculateGeojsonBbox from "@turf/bbox";
  */
 
 /**
+ * @typedef {object} MapComponentSelectedFeature
+ * @property {object} properties - Properties of the selected feature
+ * @property {object} geometry - Selected feature geometry
+ */
+
+/**
  * @typedef {object} MapComponentModel
  * @property {string} mapboxAccessToken - [input] Access token for Mapbox GL JS
  * @property {string} itemId - [input] ID of the current selected item in Retool. Change causes item-specific layers and markers to rerender.
@@ -55,7 +61,7 @@ import calculateGeojsonBbox from "@turf/bbox";
  * @property {import("mapbox-gl").MarkerOptions[]} [markers] - [input] Array of markers to display.
  * @property {import("mapbox-gl").Layer[]} [overlays] - [input] Array of toggable layers.
  * @property {import("mapbox-gl").MarkerOptions[]} [updatedMarkers]- [output] Array of markers with updated coordinates.
- * @property {object} [selectedFeatureProperties] - [output] Properties of the feature that has been clicked on.
+ * @property {MapComponentSelectedFeature} [selectedFeature] - [output] Properties and coordinates of the feature that have been clicked on.
  * @property {MapComponentCurrentCenter} [mapCenter] - [output] Map current position center and zoom. Updates on evere map move end event.
  */
 
@@ -364,7 +370,12 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
 
     map.on("click", (e) => {
       const features = map.queryRenderedFeatures(e.point);
-      modelUpdate({ selectedFeatureProperties: features[0]?.properties });
+      modelUpdate({
+        selectedFeature: {
+          properties: features[0]?.properties,
+          geometry: features[0]?.geometry,
+        },
+      });
     });
   }, []);
 
