@@ -36,7 +36,8 @@ import calculateGeojsonBbox from "@turf/bbox";
  * Basemap to be displayed under all other layers. Only Mabox GL Styles are currently supported.
  * @typedef {object} MapComponentBasemap
  * @property {string} id - Unique ID of the basemap
- * @property {string} type - Basemap type. Currently only `style` is suppurted
+ * @property {string} type - Basemap type. Currently, only `style` is suppurted
+ * @property {import("mapbox-gl").Style} data Basemap data. Currently, only Mapbox Styles are supported
  * @property {string} [name] - Name to display in the menus
  */
 
