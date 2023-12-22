@@ -236,6 +236,7 @@ const MapComponent = ({ triggerQuery, model, modelUpdate }) => {
     }
     loadingTimerRef.current = setTimeout(() => {
       setLoading(true);
+      loadingTimerRef.current = null;
     }, 1000);
     mapRef.current.once("idle", () => {
       clearTimeout(loadingTimerRef.current);
