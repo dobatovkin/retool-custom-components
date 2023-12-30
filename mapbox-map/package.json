@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Custom Mapbox map component for Retool",
   "private": true,
+  "type": "module",
   "scripts": {
     "clean": "rm -rf node_modules && rm -rf dist && rm -rf examples && npm install",
     "dev": "webpack-dev-server --mode=development",
@@ -20,6 +21,9 @@
     "@babel/core": "^7.15.8",
     "@babel/preset-env": "^7.15.8",
     "@babel/preset-react": "^7.14.5",
+    "@babel/preset-typescript": "^7.23.3",
+    "@types/mapbox-gl": "^2.7.19",
+    "@types/react-dom": "^18.2.18",
     "babel-loader": "^8.2.3",
     "css-loader": "^6.4.0",
     "file-loader": "^6.2.0",

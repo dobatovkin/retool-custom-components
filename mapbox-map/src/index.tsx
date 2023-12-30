@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom";
 import MapComponent from "./map-component";
 
+// @ts-ignore 
 const RetoolConnectedComponent = Retool.connectReactComponent(MapComponent);
 ReactDOM.render(
   <RetoolConnectedComponent />,

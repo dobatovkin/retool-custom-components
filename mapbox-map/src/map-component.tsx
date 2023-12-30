@@ -11,7 +11,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 
-import mapboxgl from "!mapbox-gl";
+import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "./index.css";
 

@@ -1,7 +1,15 @@
-const path = require("path");
-module.exports = {
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const config = {
+  resolve: {
+    extensions: [".js", ".jsx", ".ts", ".tsx"],
+  },
   context: __dirname,
-  entry: "./src/index.js",
+  entry: "./src/index.tsx",
   output: {
     path: path.resolve(__dirname, "dist"),
     filename: "index.js",
@@ -9,22 +17,23 @@ module.exports = {
   },
   devServer: {
     historyApiFallback: true,
-    allowedHosts: 'all',
+    allowedHosts: "all",
     headers: {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-      "Access-Control-Allow-Headers": "X-Requested-With, content-type, Authorization"
+      "Access-Control-Allow-Headers":
+        "X-Requested-With, content-type, Authorization",
     },
     client: {
       webSocketURL: {
-        hostname: 'localhost'
+        hostname: "localhost",
       },
-    }
+    },
   },
   module: {
     rules: [
       {
-        test: /\.js$/,
+        test: /\.(js|jsx|ts|tsx)$/,
         use: "babel-loader",
       },
       {
@@ -36,5 +45,7 @@ module.exports = {
         use: "file-loader",
       },
     ],
-  }
+  },
 };
+
+export default config;
